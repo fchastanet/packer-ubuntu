@@ -1,0 +1,49 @@
+#!/bin/bash
+
+CURRENT_DIR="$( cd "$( dirname ${BASH_SOURCE[0]})" && pwd )"
+SCRIPT_NAME=${0##*/}
+
+# load bash_framework-bootstrap
+# shellcheck source=.dev/vendor/bash-framework/_bootstrap.sh
+source "$(cd "${CURRENT_DIR}/.." && pwd)/vendor/bash-framework/_bootstrap.sh"
+
+import bash-framework/Log
+
+if [[  "${USER}" = "root" ]]; then
+    Log::displayError "The script must not be run as root"
+    exit 1
+fi
+
+# ensure that Ctrl-C is trapped by this script
+trap 'exit 130' INT
+
+
+showHelp() {
+local containers
+containers=$(docker ps --format '{{.Names}}'| sed -E 's/[^-]+-(.*)/\1/'| paste -sd "," -)
+cat << EOF
+    Command: ${SCRIPT_NAME} --help prints this help and exits
+    Command: ${SCRIPT_NAME} [docker-compose logs options] [<container>]
+
+    <container> : optional, without logs of all launched containers
+    <container> : container should be one of these values : ${containers}
+    [docker-compose logs options] see below
+EOF
+docker-compose logs --help
+}
+
+if [[ "$@" = "--help" || "$@" = "-h" ]]; then
+    showHelp
+    exit 0
+fi
+
+declare cmd=""
+if [[ "$(Functions::isWindows; echo $?)" = "1" ]]; then
+    cmd+="winpty "
+fi
+cmd+="docker-compose "
+cmd+="-f "${__rootSrcPath__}/docker-compose.yml" --project-directory "${__rootSrcPath__}" logs "
+cmd+="$@"
+
+echo "${cmd}"
+eval "exec ${cmd}"

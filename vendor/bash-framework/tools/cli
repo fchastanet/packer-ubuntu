@@ -1,0 +1,121 @@
+#!/bin/bash
+CURRENT_DIR="$( cd "$( dirname ${BASH_SOURCE[0]})" && pwd )"
+SCRIPT_NAME=${0##*/}
+
+# load bash_framework-bootstrap
+# shellcheck source=.dev/vendor/bash-framework/_bootstrap.sh
+source "$(cd "${CURRENT_DIR}/.." && pwd)/vendor/bash-framework/_bootstrap.sh"
+
+import bash-framework/Log
+
+if [[  "${USER}" = "root" ]]; then
+    Log::displayError "The script must not be run as root"
+    exit 1
+fi
+
+# ensure that Ctrl-C is trapped by this script
+trap 'exit 130' INT
+
+showHelp() {
+local containers
+containers=$(docker ps --format '{{.Names}}'| sed -E 's/[^-]+-(.*)/\1/'| paste -sd "," -)
+cat << EOF
+    Command: ${SCRIPT_NAME} --help prints this help and exits
+    Command: ${SCRIPT_NAME} [--fullname|-f] <container> [user] [command]
+
+    <container> : container should be one of these values : ${containers}
+
+    -f|--fullname do not prepend bash_framework- in front of container
+
+    examples:
+    to connect to mysql container in bash mode with user mysql
+        ${SCRIPT_NAME} mysql mysql "//bin/bash"
+    to connect to web container with user root
+        ${SCRIPT_NAME} web root
+EOF
+}
+
+# read command parameters
+# $@ is all command line parameters passed to the script.
+# -o is for short options like -h
+# -l is for long options with double dash like --help
+# the comma separates different long options
+options=$(getopt -l help,fullname -o hf -- "$@" 2> /dev/null) || {
+    Log::displayError "invalid options specified"
+    showHelp
+    exit 1
+}
+
+FULLNAME=0
+
+# TODO add parameters to override local/remote mysql connections
+eval set -- "${options}"
+while true
+do
+case $1 in
+-h|--help)
+    showHelp
+    exit 0
+    ;;
+-f|--fullname)
+    FULLNAME=1
+    ;;
+--)
+    shift
+    break;;
+*)
+    Log::displayError "invalid argument $1"
+    showHelp
+    exit 1
+esac
+shift
+done
+
+declare containerArg="$1"
+declare userArg
+declare commandArg
+if shift; then
+    userArg="$1"
+fi
+if shift; then
+    commandArg="$@"
+fi
+
+if [[ -z "${containerArg}" ]]; then
+    containerArg="web"
+fi
+if [[ -z "${userArg}" ]]; then
+    userArg="www-data"
+    case "${containerArg}" in
+        node) userArg="node";;
+        redis)userArg="redis";;
+        mysql|mysqlRemote)userArg="mysql";;
+    esac
+fi
+
+if [[ -z "${commandArg}" ]]; then
+    commandArg="//bin/bash"
+    case ${containerArg} in
+        redis)commandArg="redis-cli";;
+        mysql)commandArg="//bin/bash -c 'mysql -h${MYSQL_HOSTNAME} -u${MYSQL_USER} -p${MYSQL_PASSWORD} -P${HOST_MYSQL_PORT}'";;
+        mysqlRemote)
+            containerArg="mysql"
+            commandArg="//bin/bash -c 'mysql -h${REMOTE_MYSQL_HOSTNAME} -u${REMOTE_MYSQL_USER} -p${REMOTE_MYSQL_PASSWORD}  -P${REMOTE_MYSQL_PORT}'"
+            ;;
+    esac
+fi
+
+declare cmd=""
+if [[ "$(Functions::isWindows; echo $?)" = "1" ]]; then
+    cmd+="winpty "
+fi
+cmd+='docker exec -e COLUMNS="$(tput cols)" -e LINES="$(tput lines)" -it '
+
+# add 'bash_framework-' prefix
+if [[ "${FULLNAME}" = "0" ]]; then
+    containerArg="bash_framework-${containerArg}";
+fi
+
+cmd+="--user=${userArg} "${containerArg}" ${commandArg}"
+echo "MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' ${cmd}"
+eval "MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' ${cmd}"

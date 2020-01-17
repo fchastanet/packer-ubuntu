@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+# execute php without xdebug
+php_no_xdebug () {
+    local tempDir temporaryPhpIniFile
+    tempDir=$(mktemp -d)
+    temporaryPhpIniFile="${tempDir}/php.ini"
+
+    # at the end remove temp files
+    trap 'rm -rf ${tempDir}' EXIT
+
+    # create php.ini file without xdebug
+    # Using awk to ensure that files ending without newlines do not lead to configuration error
+    php -i | \
+        grep "\.ini" | \
+        grep -o -e '\(/[a-z0-9._-]\+\)\+\.ini' | \
+        grep -v xdebug | \
+        xargs awk 'FNR==1{print ""}1' | \
+        grep -v xdebug > "${temporaryPhpIniFile}"
+
+    # disable xdebug remote_autostart
+    unset XDEBUG_CONFIG
+    # shellcheck disable=2139
+    alias php="php -n -c \"${temporaryPhpIniFile}\""
+
+    # finally execute php with this new configuration
+    php "$@"
+}
+
+php_no_xdebug "$@"
