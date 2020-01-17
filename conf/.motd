@@ -1,0 +1,37 @@
+#!/bin/bash
+
+let upSeconds="$(/usr/bin/cut -d. -f1 /proc/uptime)"
+let secs=$((${upSeconds}%60))
+let mins=$((${upSeconds}/60%60))
+let hours=$((${upSeconds}/3600%24))
+let days=$((${upSeconds}/86400))
+UPTIME=`printf "%d days, %02dh%02dm%02ds" "$days" "$hours" "$mins" "$secs"`
+
+# get the load averages
+read one five fifteen rest < /proc/loadavg
+
+echo "$(tput setaf 2)   .~~.   .~~.    $(date +"%A, %e %B %Y, %r")"
+echo "$(tput setaf 2)  '. \ ' ' / .'   $(uname -srmo)"
+
+diskSpaceTotal="$(df -h | grep -E '/home/vagrant$' | awk '{ print $2 }')"
+diskSpaceFree="$(df -h | grep -E '/home/vagrant$' | awk '{ print $4 }')"
+
+echo "$(tput setaf 1)   .~ .~~~..~."
+echo "$(tput setaf 1)  : .~.'~'.~. :   Uptime.............: ${UPTIME}"
+echo "$(tput setaf 1) ~ (   ) (   ) ~  Memory.............: $(free -h | awk  '/Mem:/{print $4}') (Free) / $(free -h | awk  '/Mem:/{print $2}') (Total)"
+echo "$(tput setaf 1)( : '~'.~.'~' : ) Load Averages......: ${one}, ${five}, ${fifteen} (1, 5, 15 min)"
+echo "$(tput setaf 1) ~ .~ (   ) ~. ~  Running Processes..: $(ps ax | wc -l | tr -d " ")"
+echo "$(tput setaf 1)  (  : '~' :  )   Host IP Address....: $(ip route show default | awk '/default/ {print $3}')"
+echo "$(tput setaf 1)   '~ .~~~. ~'    "
+echo "$(tput setaf 1)       '~'        Home Disk Space....: ${diskSpaceFree} (Free) / ${diskSpaceTotal} (Total) on /home/vagrant"
+
+echo "$(tput sgr0)-------------------------------------"
+echo "$(tput sgr0)Useful commands:"
+echo "$(tput sgr0)(*) jetbrains-toolbox -- to install Phpstorm, ..."
+echo "$(tput sgr0)(*) phpstorm -- will launch it using xming/VcXsrv"
+echo "$(tput sgr0)(*) code -- will launch visual studio code using xming/VcXsrv"
+
+if [[ -d /home/vagrant/projects/.bin/tools ]]; then
+    echo "$(tput sgr0)(*) cli -- tool to connect to your containers"
+fi
+echo "$(tput sgr0)"

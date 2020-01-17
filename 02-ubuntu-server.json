@@ -1,0 +1,76 @@
+{
+  "_comment":"take 01-ubuntu-base.json as base image and add needed packages",
+  "variables": {
+    "version": "",
+    "box_version": "",
+    "cpus": "2",
+    "disable_ipv6": "false",
+    "ubuntu_version": "ubuntu-18.04",
+    "docker_compose_version": "1.24.1",
+    "headless": "true",
+    "http_proxy": "{{env `http_proxy`}}",
+    "https_proxy": "{{env `https_proxy`}}",
+    "memory": "4096",
+    "no_proxy": "{{env `no_proxy`}}",
+    "ssh_password": "vagrant",
+    "ssh_username": "vagrant",
+    "update": "true"
+  },
+  "builders": [
+    {
+      "type": "virtualbox-ovf",
+      "source_path": "./output-virtualbox-01/{{user `ubuntu_version`}}-base.ovf",
+      "output_directory": "./output-virtualbox-02/",
+      "vm_name": "{{user `ubuntu_version`}}-server",
+      "guest_additions_mode": "disable",
+      "ssh_username": "{{user `ssh_username`}}",
+      "ssh_password": "{{user `ssh_password`}}",
+      "ssh_port": 22,
+      "ssh_wait_timeout": "10000s",
+      "headless": "{{user `headless`}}",
+      "shutdown_command": "echo 'vagrant'|sudo -S shutdown -P now",
+      "vboxmanage": [
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--memory",
+          "{{user `memory`}}"
+        ],
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--cpus",
+          "{{user `cpus`}}"
+        ]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "environment_vars": [
+        "DEBIAN_FRONTEND=noninteractive",
+        "UPDATE={{user `update`}}",
+        "DISABLE_IPV6={{user `disable_ipv6`}}",
+        "SSH_USERNAME={{user `ssh_username`}}",
+        "SSH_PASSWORD={{user `ssh_password`}}",
+        "DOCKER_COMPOSE_VERSION={{user `docker_compose_version`}}",
+        "BOX_VERSION={{user `box_version`}}",
+        "http_proxy={{user `http_proxy`}}",
+        "https_proxy={{user `https_proxy`}}",
+        "no_proxy={{user `no_proxy`}}"
+      ],
+      "execute_command": "echo '{{user `ssh_password`}}'|{{.Vars}} sudo -E -S bash '{{.Path}}'",
+      "expect_disconnect": true,
+      "scripts": [
+        "./scripts/init.sh",
+        "./scripts/update.sh",
+        "./scripts/network.sh",
+        "./scripts/docker.sh",
+        "./scripts/disable-apt-daily.sh",
+        "./scripts/motd.sh",
+        "./scripts/final-config.sh",
+        "./scripts/cleanup.sh"
+      ]
+  }]
+}

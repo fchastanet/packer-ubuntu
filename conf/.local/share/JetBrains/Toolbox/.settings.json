@@ -1,0 +1,21 @@
+{
+  "privacy_policy": {
+    "eua_accepted_version": "1.2"
+  },
+  "install_location": "/opt/jetbrains/lib",
+  "shell_scripts": {
+    "enabled": true,
+    "location": "/home/vagrant/.bin"
+  },
+  "signal": "settingsChanged",
+  "tools": {
+    "update_all_automatically": false
+  },
+  "update": {
+    "filter": {
+      "quality_filter": {
+        "order_value": 10000
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "default-address-pools":[
+    {"scope": "local", "base":"10.168.0.0/16","size":24}
+  ]
+}

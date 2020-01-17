@@ -1,0 +1,104 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+# this file is used when using make start or make start-local
+
+VAGRANT_BOX = "@@@VAGRANT_BOX@@@"
+VAGRANT_BOX_VERSION = "@@@VAGRANT_BOX_VERSION@@@"
+VM_NAME = "@@@VM_NAME@@@"
+HOST_USERNAME = "#{ENV['USERNAME'] || `whoami`}"
+DNS_HOSTNAME = "#{ENV['DNS_HOSTNAME'] || "#{HOST_USERNAME}.my.url.local"}"
+CPU=4
+MEMORY=8192
+
+disk_variant = 'Standard'
+disk_size = 100 * 1024
+disk_filename = "~/#{VM_NAME}_userData.vdi"
+
+# add required plugins here
+required_plugins = %w( vagrant-vbguest vagrant-timezone vagrant-persistent-storage )
+
+# install required plugins if necessary
+if ARGV[0] == 'up'
+    missing_plugins = []
+    required_plugins.each do |plugin|
+        missing_plugins.push(plugin) unless Vagrant.has_plugin? plugin
+    end
+    if ! missing_plugins.empty?
+        install_these = missing_plugins.join(' ')
+        puts "Found missing plugins: #{install_these}.  Installing ..."
+        puts "Installing plugins: #{install_these}"
+        # on linux, it would require sudo, but we target windows here
+        if system "vagrant plugin install #{install_these}"
+            # at the end restart this process
+            # Note : exec replaces current process
+            exec "vagrant #{ARGV.join(' ')}"
+        else
+            abort "Installation of one or more plugins has failed. Aborting."
+        end
+    end
+end
+
+Vagrant.configure("2") do |config|
+  if Vagrant.has_plugin?("vagrant-timezone")
+    config.timezone.value = "Europe/Paris"
+  end
+  config.vm.synced_folder '~/', '/hostHome', type: 'nfs'
+  config.vm.synced_folder File.dirname(__FILE__) + "/conf", '/home/vagrantConf', type: 'nfs'
+
+  config.persistent_storage.enabled = true
+  config.persistent_storage.location = disk_filename
+  config.persistent_storage.variant = disk_variant
+  config.persistent_storage.use_lvm = true
+  config.persistent_storage.size = disk_size
+  config.persistent_storage.filesystem = 'ext4'
+
+  config.vm.network "private_network", type: "dhcp"
+
+  config.vm.network "forwarded_port", guest: 80,   host_ip: "localhost", host: 80,   protocol: "tcp", auto_correct: true, id: "apache-http"
+  config.vm.network "forwarded_port", guest: 81,   host_ip: "localhost", host: 81,   protocol: "tcp", auto_correct: true, id: "alternate apache"
+  config.vm.network "forwarded_port", guest: 443,  host_ip: "localhost", host: 443,  protocol: "tcp", auto_correct: true, id: "apache-https"
+
+  config.vm.provision "initVM", type: "shell", privileged: true, path: File.dirname(__FILE__) + "/scripts-vagrant/vm-bootstrap.sh", run: 'always', env: {"DNS_HOSTNAME" => "#{DNS_HOSTNAME}", "HOST_USERNAME" => "#{HOST_USERNAME}"}
+
+  config.vm.define VM_NAME do |virtualbox|
+    virtualbox.vm.hostname = DNS_HOSTNAME
+    virtualbox.vm.box = VAGRANT_BOX
+    virtualbox.vm.box_version = VAGRANT_BOX_VERSION
+
+    config.vm.provider :virtualbox do |v, override|
+        v.name = VM_NAME
+        v.memory = MEMORY
+        v.cpus = CPU
+
+        # vm other hardware options
+        v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+
+        v.customize ["modifyvm", :id, "--cpus", CPU]
+        v.customize ["modifyvm", :id, "--memory", MEMORY]
+
+        if VAGRANT_BOX.end_with?("serverX11")
+            v.gui = false
+            v.customize ["modifyvm", :id, "--graphicscontroller", "none"]
+        else
+            v.gui = true
+            # Allow the VM to display the desktop environment
+            v.customize ["modifyvm", :id, "--graphicscontroller", "vboxsvga"]
+            v.customize ["modifyvm", :id, "--accelerate2dvideo", "on"]
+            # Enable, if Guest Additions are installed, whether hardware 3D acceleration should be available
+            v.customize ["modifyvm", :id, "--accelerate3d", "on"]
+            v.customize ["modifyvm", :id, "--audiocontroller", "hda"]
+            v.customize ["modifyvm", :id, "--monitorcount", "2"]
+        end
+
+        # Enabling the I/O APIC is required for 64-bit guest operating systems, especially Windows Vista;
+        # it is also required if you want to use more than one virtual CPU in a VM.
+        v.customize ["modifyvm", :id, "--ioapic", "on"]
+        v.customize ["modifyvm", :id, "--vram", 128]
+        v.customize ["modifyvm", :id, "--usb", "off"]
+
+        # Setup copy/paste
+        v.customize ["modifyvm", :id, "--clipboard", "bidirectional"]
+        v.customize ["modifyvm", :id, "--draganddrop", "bidirectional"]
+    end
+  end
+end

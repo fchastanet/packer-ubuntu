@@ -1,0 +1,94 @@
+{
+  "_comment":"take 02-ubuntu-server.json as base image and add desktop needed packages",
+  "variables": {
+    "version": "",
+    "box_version": "",
+    "ubuntu_version": "ubuntu-18.04",
+    "cpus": "2",
+    "desktop": "",
+    "disable_ipv6": "false",
+    "headless": "true",
+    "http_proxy": "{{env `http_proxy`}}",
+    "https_proxy": "{{env `https_proxy`}}",
+    "memory": "4096",
+    "no_proxy": "{{env `no_proxy`}}",
+    "ssh_password": "vagrant",
+    "ssh_username": "vagrant",
+    "update": "true",
+    "vagrantfile_template": "./Vagrantfile.box.template"
+  },
+  "builders": [
+    {
+      "type": "virtualbox-ovf",
+      "source_path": "./output-virtualbox-02/{{user `ubuntu_version`}}-server.ovf",
+      "output_directory": "./output-virtualbox-03-{{user `desktop`}}/",
+      "guest_additions_mode": "disable",
+      "vm_name": "{{user `ubuntu_version`}}-desktop",
+      "ssh_username": "{{user `ssh_username`}}",
+      "ssh_password": "{{user `ssh_password`}}",
+      "ssh_port": 22,
+      "ssh_wait_timeout": "10000s",
+      "headless": "{{user `headless`}}",
+      "shutdown_command": "echo 'vagrant'|sudo -S shutdown -P now",
+      "vboxmanage": [
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--memory",
+          "{{user `memory`}}"
+        ],
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--cpus",
+          "{{user `cpus`}}"
+        ]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "environment_vars": [
+        "DEBIAN_FRONTEND=noninteractive",
+        "UPDATE={{user `update`}}",
+        "DISABLE_IPV6={{user `disable_ipv6`}}",
+        "SSH_USERNAME={{user `ssh_username`}}",
+        "SSH_PASSWORD={{user `ssh_password`}}",
+        "DESKTOP={{user `desktop`}}",
+        "BOX_VERSION={{user `box_version`}}",
+        "http_proxy={{user `http_proxy`}}",
+        "https_proxy={{user `https_proxy`}}",
+        "no_proxy={{user `no_proxy`}}"
+      ],
+      "execute_command": "echo '{{user `ssh_password`}}'|{{.Vars}} sudo -E -S bash '{{.Path}}'",
+      "expect_disconnect": true,
+      "scripts": [
+        "./scripts-desktop/common-conf.sh",
+        "./scripts-desktop/install-desktop-gnome.sh",
+        "./scripts-desktop/install-desktop-lxde.sh",
+        "./scripts-desktop/install-desktop-common.sh",
+        "./scripts-desktop/install-serverX11.sh",
+        "./scripts-desktop/install-browsers.sh",
+        "./scripts-desktop/install-libreoffice.sh",
+        "./scripts-desktop/install-other-softwares.sh",
+        "./scripts-desktop/install-vscode.sh",
+        "./scripts-desktop/install-jetbrains-toolbox.sh",
+        "./scripts-desktop/install-code-checker.sh",
+        "./scripts-desktop/motd.sh",
+        "./scripts/cleanup.sh"
+      ],
+      "type": "shell"
+    }
+  ],
+  "post-processors": [
+    [
+      {
+        "type": "vagrant",
+        "compression_level": 9,
+        "keep_input_artifact": true,
+        "output": "./output-virtualbox-03-{{user `desktop`}}/{{user `ubuntu_version`}}-desktop.box",
+        "vagrantfile_template": "{{user `vagrantfile_template`}}"
+      }
+    ]
+  ]
+}

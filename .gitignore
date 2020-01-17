@@ -1,0 +1,14 @@
+.idea/*
+builds/*
+packer_cache/*
+!packer_cache/.gitkeep
+output-virtualbox-*
+vagrant.token
+Vagrantfile
+logs/*
+!logs/.gitkeep
+userData.vdi
+.vagrant
+tests/Vagrantfile
+tests/01-Vagrantfile.template
+vendor/bats*

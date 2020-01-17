@@ -1,0 +1,3 @@
+# this bashrc will not be updated upon vm start
+# add your own commands in it
+export TIMEZONE="Europe/Paris"
